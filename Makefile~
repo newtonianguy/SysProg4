@@ -17,7 +17,7 @@ lib: libnetfiles.c libnetfiles.h
 	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c libnetfiles.h
 
 clean:
-	rm -rf testfile *.o *.out *.gch libnet netfile
+	rm -rf testfile *.o *.out *.gch invertedIndexer
 	
 	
 archive:
