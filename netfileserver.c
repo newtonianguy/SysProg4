@@ -10,6 +10,7 @@
 #define PORTNUM 2343
 
 int main(int argc, char *argv[]){
+	char *msg = "Hello World\n";
 	struct sockaddr_in dest;//socket info about the machine connecting to us
 	struct sockaddr_in serv;//socket info about the server
 	int mySocket;//socket used for listening for incoming connections
@@ -17,23 +18,23 @@ int main(int argc, char *argv[]){
 	
 	memset(&serv, 0, sizeof(serv));//zero the struct before filling the fields
 	serv.sin_family = AF_INET;//set the type of connection to TCP/IP
-	serv.sinaddr.s_addr = htonl(INADDR_ANY);//set our address to any interface
+	serv.sin_addr.s_addr = htonl(INADDR_ANY);//set our address to any interface
 	serv.sin_port = htons(PORTNUM);//set the server port number
 	
-	mysocket = socket(AF_INET, SOCKSTREAM, 0);
+	mySocket = socket(AF_INET, SOCK_STREAM, 0);
 	
-	bind(mysocket, (struct sockaddr *)&serv, sizeof(struct sockaddr));//bind server info to mysocket
+	bind(mySocket, (struct sockaddr *)&serv, sizeof(struct sockaddr));//bind server info to mysocket
 	
 	//starts listening for connections to queue
-	listen(mysocket, 3);
-	int conSocket = accept(mysocket, (struct sockaddr *)&dest, &socksize);
+	listen(mySocket, 3);
+	int conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);
 	
-	while(consocket){
+	while(conSocket){
 		printf("Incoming connection from %s - sending welcome\n",inet_ntoa(dest.sin_addr));
-		send(consocket, msg, strlen(msg), 0);
-		consocket = accept(mysocket, (struct sockaddr *)&dest, &socksize);
+		send(conSocket, msg, strlen(msg), 0);
+		conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);
 	}
-	close(consocket);
-	close(mysocket);
+	close(conSocket);
+	close(mySocket);
 	return EXIT_SUCCESS;
 }
