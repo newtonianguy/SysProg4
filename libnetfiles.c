@@ -15,10 +15,14 @@
 
 
 int netserverinit(const char* hostname, const char* mode){
-	return 0;
+	if( gethostbyname(hostname) != 0 ){
+		return 0;
+	}
+	return -1;
 }
 
 int netopen(const char *pathname, int flags){
+	
 	return 0;
 }
 
