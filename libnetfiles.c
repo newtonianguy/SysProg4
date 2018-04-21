@@ -14,14 +14,14 @@
 
 char *Umode;
 
-int netserverinit(const char* hostname, const char* mode){
+int netserverinit(const char* hostname, char* mode){
 	Umode = mode; 
 	if( gethostbyname(hostname) == NULL ){
 		printf("Error: Host does not exist\n");
 		return -1;
 	}
 	printf("Host does exist.\n");
-	return 0;
+	return 0;,
 }
 
 int netopen(const char *pathname, int flags){
@@ -29,7 +29,7 @@ int netopen(const char *pathname, int flags){
 	int len, mysocket;
 	//makes message that will be sent to server
 	char *msg;
-	msg = (char*) malloc( (4+strlen(pathname)+strlen(flags));
+	msg = (char*) malloc(4+strlen(pathname)+flags);
 	strcat(msg, "exclusive,");
 	strcat(msg, pathname);
 	strcat(msg, ",");
