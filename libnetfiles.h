@@ -8,6 +8,12 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stddef.h>
+#include <math.h>
+#define MAXRCVLEN 500
+#define PORTNUM 2343
+#define O_WRONLY 1
+#define O_RDONLY 0
+#define O_RDWR 2
 
 int netserverinit(const char* hostname, const char* mode);
 int netopen(const char *pathname, int flags);

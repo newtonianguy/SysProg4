@@ -7,7 +7,7 @@ RANLIB = ranlib
 
 
 all: libnetfiles.c libnetfiles.h netfileserver.c
-	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c libnetfiles.h
+	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c 
 	gcc -g -Wall -Werror -fsanitize=address -o netfile netfileserver.c
 
 server: netfileserver.c
@@ -17,7 +17,7 @@ lib: libnetfiles.c libnetfiles.h
 	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c libnetfiles.h
 
 clean:
-	rm -rf testfile *.o *.out *.gch invertedIndexer
+	rm -rf testfile *.o *.out *.gch libnet netfile
 	
 	
 archive:

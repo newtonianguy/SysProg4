@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <netdb.h>w
+#include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -8,6 +8,12 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stddef.h>
+#include <math.h>
+#define MAXRCVLEN 500
+#define PORTNUM 2343
+#define O_WRONLY
+#define O_RDONLY
+#define O_RDWR
 
 int netserverinit(const char* hostname, const char* mode);
 int netopen(const char *pathname, int flags);

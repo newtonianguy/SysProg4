@@ -1,39 +1,35 @@
 //TODO:do stuff
 //make netopen(), netread(), netwrite(), abd netclose()
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#define MAXRCVLEN 500
-#define PORTNUM 2343
 #include "libnetfiles.h"
 
-char *Umode;
+//char *Umode;
 
-int netserverinit(const char* hostname, char* mode){
-	Umode = mode; 
+int netserverinit(const char* hostname, const char* mode){
+	//Umode = mode; 
 	if( gethostbyname(hostname) == NULL ){
 		printf("Error: Host does not exist\n");
 		return -1;
 	}
 	printf("Host does exist.\n");
-	return 0;,
+	return 0;
 }
 
 int netopen(const char *pathname, int flags){
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
 	int len, mysocket;
-	//makes message that will be sent to server
 	char *msg;
-	msg = (char*) malloc(4+strlen(pathname)+flags);
+	//converts "flags" from int to char
+	char *flag;
+	int flagLen = (int)((ceil(log10(flags))+1)*sizeof(char));//size of file as a string
+	flag = (char*) malloc(flagLen);
+	sprintf(flag,"%d",flags);
+	//makes message that will be sent to server
+	msg = (char*) malloc(12+strlen(pathname)+flags);
+	
 	strcat(msg, "exclusive,");
 	strcat(msg, pathname);
 	strcat(msg, ",");
-	strcat(msg, flags);
+	strcat(msg, flag);
 	strcat(msg, "\0");
 	//makes connection
 	struct sockaddr_in dest;
@@ -65,7 +61,7 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 	char fd[fileLen],bytes[byteLen];
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
-	sprintf(bytes,"%d",nbyte);
+	sprintf(bytes,"%d",(int)nbyte);
 	//makes message that will be sent to server
 	char *msg;
 	msg = (char*) malloc(fileLen + byteLen + 7);//7 is for ",read," and null terminator
@@ -103,7 +99,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	char fd[fileLen],bytes[byteLen];
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
-	sprintf(bytes,"%d",nbyte);
+	sprintf(bytes,"%d",(int)nbyte);
 	//makes message that will be sent to server
 	char *msg;
 	msg = (char*) malloc(fileLen + byteLen + 7);//7 is for ",read," and null terminator
@@ -139,6 +135,8 @@ int netclose(int fd){
 
 int main(int argc, char *argv[])
 {
+	netopen("test/test.txt",O_RDWR);
+	/*
 	netserverinit("mam1010.ls.rutgers.edu","exclusive");
 	char buffer[MAXRCVLEN + 1]; // +1 so we can add null terminator
 	int len, mysocket;
@@ -155,5 +153,7 @@ int main(int argc, char *argv[])
 	printf("Received %s (%d bytes).\n", buffer, len);
 	close(mysocket);
 	return EXIT_SUCCESS;
+	*/
+	return 0;
 }
 
