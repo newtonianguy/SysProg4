@@ -55,45 +55,57 @@ void *threadFunc(void* arg){//This is what the thread runs
 	if( part < 2 ){
 		printf("Error:Too few parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
 	}
-	
 	//interprets message and performs commands
 	openCheck = atoi(msg[0]);
 	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int size = atoi(msg[2]);//size of read or write
 		char buff[size];
 		int bytes;
-		if(strcmp(msg[1], "read") == 0){//checks to see if it is a "read" command
+		if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
 			bytes = read(openCheck, buff, size);
 			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
+			printf("Here\n");
 			sprintf(re, "%d", bytes);
-			strcat(re, "\0");
-			er = (char*) malloc(strlen(strerror(errno)) + 1);
-			strcat(er,strerror(errno));
-			strcat(er,"\n");
+			printf("Here1\n");
+			if(errno == 0){
+				er = "0";
+			}
+			else{
+				er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
+				sprintf(er, "%d", errno);
+			}
+			printf("Here2\n");
 			//makes response message
-			mess = (char*) malloc(sizeof(er) + sizeof(re) + 1);
+			mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
 			strcat(mess, re);
+			strcat(mess, ",");
 			strcat(mess, er);
 			strcat(mess, "\0");
+			printf("Here3\n");
 			send(sock, mess, strlen(mess), 0);
 		}
-		else if(strcmp(msg[1], "write") == 0){//checks to see if this is a write command
+		else if(strcmp(msg[1], "write\0") == 0){//checks to see if this is a write command
+			printf("Here1\n");
 			bytes = write(openCheck, buff, size);
 			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)));
 			sprintf(re, "%d", bytes);
-			strcat(re, "\0");
-			er = (char*) malloc(strlen(strerror(errno)) + 1);
-			strcat(er,strerror(errno));
-			strcat(er,"\n");
-			
+			if(errno == 0){
+				er = "0";
+			}
+			else{
+				er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
+				sprintf(er, "%d", errno);
+			}
 			//makes response message
-			mess = (char*) malloc(sizeof(er) + sizeof(re) + 1);
+			mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
 			strcat(mess, re);
+			strcat(mess, ",");
 			strcat(mess, er);
 			strcat(mess, "\0");
 			send(sock, mess, strlen(mess), 0);
 		}
 		else{
+			printf("Here3\n");
 			printf("Error:Client did not send an identifiable command to server\n");
 			return NULL;
 		}
@@ -118,7 +130,6 @@ void *threadFunc(void* arg){//This is what the thread runs
 		strcat(mess, ",");
 		strcat(mess, er);
 		strcat(mess, "\0");
-		printf("%s\n",mess);
 		send(sock, mess, strlen(mess), 0);
 	}
 	return NULL;
