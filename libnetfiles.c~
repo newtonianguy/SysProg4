@@ -118,6 +118,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
 	//send message
+	printf("Hi\n");
 	send(mysocket, msg, strlen(msg), 0);
 	//receive return message
 	len = recv(mysocket, buffer, MAXRCVLEN, 0);
@@ -135,7 +136,6 @@ int netclose(int fd){
 
 int main(int argc, char *argv[])
 {
-	printf("Here\n");
 	netopen("test/test.txt",O_RDWR);
 	/*
 	netserverinit("mam1010.ls.rutgers.edu","exclusive");

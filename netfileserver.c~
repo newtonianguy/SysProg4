@@ -18,42 +18,53 @@ pthread_attr_t attr;
 
 //function passed to create thread
 void *threadFunc(void* arg){//This is what the thread runs
+	int len, *mysocket = (int*)arg, openCheck;
 	int sock = *((int*)arg);//converts argument into socket connection
-	int counter, length=0, part=0;
-	char buffer[MAXRCVLEN + 1];//for reading in message
+	int counter, part=0, start=0;
+	size_t length=0;
+	char buffer[MAXRCVLEN];//for reading in message
 	char *msg[3];//for deconstructing message into readable commands
 	char *mess;//message that gets sent back to client. Will have return value and error value
 	char *er;//error value
 	char *re;//return value
-	//TODO:Read in message from client
-	
+	//reads in message
+	len = recv(mysocket[0], buffer, MAXRCVLEN, 0);
+	buffer[len] = '\0';
 	//reads string client sent
-	for(counter=0; counter<MAXRCVLEN ;counter++){ 
+	printf("Len:%d\n",len);
+	for(counter=0; counter<len;counter++){
+		if(buffer[counter] == '\0'){
+			break;
+		}
 		if(buffer[counter] == 44){//breaks apart message at commas
 			if( part>=3 ){//makes sure too many parameters weren't sent by the client
 				printf("Error:Too many parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
 			}
 			printf("Found break in the message\n");
 			msg[part] = (char*) malloc(length+1);
-			strcat(msg[part],"0");//adds null character to end 
+			strncpy(msg[part], &buffer[start], length);
 			part++;
+			start = counter + 1;
 			length = 0;
 			continue;
 		}
 		length++;
 	}
+	msg[part] = (char*) malloc(length+1);
+	strncpy(msg[part], &buffer[start], length);
 	//checks to see if command message was sent correctly
-	if( part!=3 ){
+	if( part < 2 ){
 		printf("Error:Too few parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
 	}
+	
 	//interprets message and performs commands
-	if(msg[0][0] == 45 || (47 < msg[0][0] && msg[0][0] < 58)){//this means the message is a "read" or "write" command
-		int fd = atoi(msg[0]);
+	openCheck = atoi(msg[0]);
+	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int size = atoi(msg[2]);//size of read or write
 		char buff[size];
 		int bytes;
 		if(strcmp(msg[1], "read") == 0){//checks to see if it is a "read" command
-			bytes = read(fd, buff, size);
+			bytes = read(openCheck, buff, size);
 			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
 			sprintf(re, "%d", bytes);
 			strcat(re, "\0");
@@ -68,13 +79,14 @@ void *threadFunc(void* arg){//This is what the thread runs
 			send(sock, mess, strlen(mess), 0);
 		}
 		else if(strcmp(msg[1], "write") == 0){//checks to see if this is a write command
-			bytes = write(fd, buff, size);
+			bytes = write(openCheck, buff, size);
 			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)));
 			sprintf(re, "%d", bytes);
 			strcat(re, "\0");
 			er = (char*) malloc(strlen(strerror(errno)) + 1);
 			strcat(er,strerror(errno));
 			strcat(er,"\n");
+			
 			//makes response message
 			mess = (char*) malloc(sizeof(er) + sizeof(re) + 1);
 			strcat(mess, re);
@@ -94,16 +106,16 @@ void *threadFunc(void* arg){//This is what the thread runs
 		retur = open(msg[1],flags);
 		re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
 		sprintf(re, "%d", retur);
-		strcat(re, "\0");
+		printf("Here2\n");
 		er = (char*) malloc(strlen(strerror(errno)) + 1);
 		strcat(er,strerror(errno));
-		strcat(er,"\n");
 		//makes response message
 		//TODO:Set response and error values
 		mess = (char*) malloc(sizeof(er) + sizeof(re) + 1);
 		strcat(mess, re);
 		strcat(mess, er);
 		strcat(mess, "\0");
+		printf("Here3\n");
 		send(sock, mess, strlen(mess), 0);
 	}
 	return NULL;
@@ -111,10 +123,10 @@ void *threadFunc(void* arg){//This is what the thread runs
 
 int main(int argc, char *argv[]){
 	//initializes the thread attributes
-	pthread_t* tnum=0;
+	pthread_t tnum=0;
 	pthread_attr_init(&attr);
 	//sets pthread variables
-	
+
 	//sets up server 
 	struct sockaddr_in dest;//socket info about the machine connecting to us
 	struct sockaddr_in serv;//socket info about the server
@@ -133,12 +145,13 @@ int main(int argc, char *argv[]){
 	//starts listening for connections to queue
 	listen(mySocket, 1);
 	int conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);
-	pthread_create(tnum, &attr, &threadFunc, (void*) &conSocket);//creates thread
-	
+	pthread_create(&tnum, &attr, &threadFunc, (void*) &conSocket);//creates thread
+	tnum++;
 	while(conSocket){
 		printf("Incoming connection from %s - sending welcome\n",inet_ntoa(dest.sin_addr));
 		conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);//accepts new connection
-		pthread_create(tnum,&attr,&threadFunc,(void*) &conSocket);//creates thread for new connection
+		pthread_create(&tnum,&attr,&threadFunc,(void*) &conSocket);//creates thread for new connection
+		tnum++;
 	}
 	pthread_attr_destroy(&attr);//destroys unecesarry attributes
 	close(conSocket);
