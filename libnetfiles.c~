@@ -16,41 +16,58 @@ int netserverinit(const char* hostname, const char* mode){
 
 int netopen(const char *pathname, int flags){
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
-	int len, mysocket;
+	int len, mysocket, length = 0, counter, ret;
 	char *msg;
+	
 	//converts "flags" from int to char
-	char *flag;
+	char *flag, *re, *er;
 	int flagLen = (int)((ceil(log10(flags))+1)*sizeof(char));//size of file as a string
 	flag = (char*) malloc(flagLen);
 	sprintf(flag,"%d",flags);
+	
 	//makes message that will be sent to server
 	msg = (char*) malloc(12+strlen(pathname)+flags);
-	
 	strcat(msg, "exclusive,");
 	strcat(msg, pathname);
 	strcat(msg, ",");
 	strcat(msg, flag);
 	strcat(msg, "\0");
+	
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
 	memset(&dest, 0, sizeof(dest)); // zero the struct
 	dest.sin_family = AF_INET;
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
-	
 	dest.sin_port = htons(PORTNUM); // set destination port number
-	
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	
 	//send message
 	send(mysocket, msg, strlen(msg), 0);
+
 	//receive return message
 	len = recv(mysocket, buffer, MAXRCVLEN, 0);
 	// We have to null terminate the received data ourselves 
 	buffer[len] = '\0';
 	printf("Received %s (%d bytes).\n", buffer, len);
-	//TODO:Read and interpret return message
 	close(mysocket);
-	return 0;
+	//interprets message(commas separate return and error values)	
+	for(counter=0; counter<len;counter++){
+		if(buffer[counter] == 44){//breaks apart message at commas
+			re = (char*) malloc(length+1);//gets return value
+			strncpy(re, &buffer[0], length);
+			break;
+		}
+		length++;
+	}
+	//TODO:inform user when an error occurs
+	er = (char*) malloc(len - length + 1);
+	strncpy(er, &buffer[length], (len - length));
+	printf("Here1\n");
+	errno = atoi(er);
+	printf("Here\n");
+	ret = atoi(re);
+	return ret;
 }
 
 size_t netread(int fildes, void *buf, size_t nbyte){

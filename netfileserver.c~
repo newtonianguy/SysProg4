@@ -31,7 +31,6 @@ void *threadFunc(void* arg){//This is what the thread runs
 	len = recv(mysocket[0], buffer, MAXRCVLEN, 0);
 	buffer[len] = '\0';
 	//reads string client sent
-	printf("Len:%d\n",len);
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == '\0'){
 			break;
@@ -106,16 +105,20 @@ void *threadFunc(void* arg){//This is what the thread runs
 		retur = open(msg[1],flags);
 		re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
 		sprintf(re, "%d", retur);
-		printf("Here2\n");
-		er = (char*) malloc(strlen(strerror(errno)) + 1);
-		strcat(er,strerror(errno));
+		if(errno == 0){
+			er = "0";
+		}
+		else{
+			er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
+			sprintf(er, "%d", errno);
+		}
 		//makes response message
-		//TODO:Set response and error values
-		mess = (char*) malloc(sizeof(er) + sizeof(re) + 1);
+		mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
 		strcat(mess, re);
+		strcat(mess, ",");
 		strcat(mess, er);
 		strcat(mess, "\0");
-		printf("Here3\n");
+		printf("%s\n",mess);
 		send(sock, mess, strlen(mess), 0);
 	}
 	return NULL;
