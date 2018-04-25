@@ -58,13 +58,18 @@ void *threadFunc(void* arg){//This is what the thread runs
 	//interprets message and performs commands
 	openCheck = atoi(msg[0]);
 	if(openCheck != 0){//this means the message is a "read" or "write" command
-		int size = atoi(msg[2]);//size of read or write
-		char buff[size];
 		int bytes;
 		if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
+			int size = atoi(msg[2]);//size of read or write
+			char buff[size];
 			bytes = read(openCheck, buff, size);
-			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
-			sprintf(re, "%d", bytes);
+			if(bytes == 0){
+				re = "0";
+			}
+			else{
+				re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
+				sprintf(re, "%d", bytes);
+			}
 			if(errno == 0){
 				er = "0";
 			}
@@ -73,18 +78,25 @@ void *threadFunc(void* arg){//This is what the thread runs
 				sprintf(er, "%d", errno);
 			}
 			//makes response message
-			mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
+			mess = (char*) malloc(sizeof(er) + sizeof(re) + size + 3);
 			strcat(mess, re);
+			strcat(mess, ",");
+			strcat(mess,buff);
 			strcat(mess, ",");
 			strcat(mess, er);
 			strcat(mess, "\0");
 			send(sock, mess, strlen(mess), 0);
 		}
 		else if(strcmp(msg[1], "write\0") == 0){//checks to see if this is a write command
-			printf("Here1\n");
-			bytes = write(openCheck, buff, size);
-			re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)));
-			sprintf(re, "%d", bytes);
+			int size = strlen(msg[2]);//size of read or write
+			bytes = write(openCheck, msg[2], size);
+			if(bytes == 0){
+				re = "0";
+			}
+			else{
+				re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
+				sprintf(re, "%d", bytes);
+			}
 			if(errno == 0){
 				er = "0";
 			}
@@ -98,10 +110,10 @@ void *threadFunc(void* arg){//This is what the thread runs
 			strcat(mess, ",");
 			strcat(mess, er);
 			strcat(mess, "\0");
+			printf("Here2\n");
 			send(sock, mess, strlen(mess), 0);
 		}
 		else{
-			printf("Here3\n");
 			printf("Error:Client did not send an identifiable command to server\n");
 			return NULL;
 		}
