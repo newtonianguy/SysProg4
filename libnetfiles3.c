@@ -60,19 +60,17 @@ int netopen(const char *pathname, int flags){
 		if(buffer[counter] == 44){//breaks apart message at commas
 			re = (char*) malloc(length+1);//gets return value
 			strncpy(re, &buffer[0], length);
-			length++;
 			break;
 		}
 		length++;
 	}
-	printf("error:%s\n",&buffer[length]);
 	//TODO:inform user when an error occurs
-	er = (char*) malloc(len - length+1);
+	er = (char*) malloc(len - length + 1);
 	strncpy(er, &buffer[length], (len - length));
 	errno = atoi(er);
 	ret = atoi(re);
 	if(ret == -1){
-		printf("Error:%d\n",errno);
+		printf("Error:%d",errno);
 	}
 	return ret;
 }
@@ -233,23 +231,21 @@ int netclose(int fd){
 	//TODO:inform user when an error occurs
 	er = (char*) malloc(len - length + 1);
 	strncpy(er, &buffer[length], (len - length));
-	printf("Errno:%s\n",er);
 	errno = atoi(er);
 	ret = atoi(re);
 	if(ret == -1){
-		printf("Error:%d \n",errno);
+		printf("Error:%d",errno);
 	}
 	return ret;
 }
 
 int main(int argc, char *argv[])
 {
-	//int fd;
+	//int fd, x;
 	//char buf[20];
-	netopen("test/test1.txt",O_RDWR);
-	//open("test/test1.txt",O_RDWR);
+	//fd = netopen("test/test.txt",O_RDWR);
 	//x = netclose(fd);
-	//printf("%d\n",errno);
+
 	//read(fd, buf, 20);
 	//char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
 	//netwrite(fd, buff, strlen(buff));

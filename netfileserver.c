@@ -146,7 +146,6 @@ void *threadFunc(void* arg){//This is what the thread runs
 			strcat(mess, ",");
 			strcat(mess, er);
 			strcat(mess, "\0");
-			printf("Here2\n");
 			send(sock, mess, strlen(mess), 0);
 		}
 		else{
@@ -156,12 +155,19 @@ void *threadFunc(void* arg){//This is what the thread runs
 	}
 	else{//otherwise the command is an "open" command
 		//TODO:Check for incorrect open command message
+		printf("Open Called\n");
 		int flags = atoi(msg[2]);
 		int retur;
 		retur = open(msg[1],flags);
-		re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
-		sprintf(re, "%d", retur);
-		if(errno == 0){
+		if(retur <= 0){
+			re = "-1";
+		}
+		else{
+			re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
+			sprintf(re, "%d", retur);
+		}
+	
+		if(errno <= 0){
 			er = "0";
 		}
 		else{
