@@ -18,6 +18,8 @@ pthread_attr_t attr;
 
 //function passed to create thread
 void *threadFunc(void* arg){//This is what the thread runs
+
+	//declares variables
 	int len, *mysocket = (int*)arg, openCheck;
 	int sock = *((int*)arg);//converts argument into socket connection
 	int counter, part=0, start=0;
@@ -30,6 +32,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 	//reads in message
 	len = recv(mysocket[0], buffer, MAXRCVLEN, 0);
 	buffer[len] = '\0';
+	
 	//reads string client sent
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == '\0'){
@@ -51,6 +54,38 @@ void *threadFunc(void* arg){//This is what the thread runs
 	}
 	msg[part] = (char*) malloc(length+1);
 	strncpy(msg[part], &buffer[start], length);
+	
+	//checks to see if this is a close message
+	if(part==0){
+		//calls close and gets return and error messages
+		int fd = atoi(msg[0]);
+		int ret;
+		ret = close(fd);
+		if(ret <= 0){
+				re = "0";
+		}
+		else{
+				re = (char*) malloc((int)((ceil(log10(ret))+1)*sizeof(char)) + 1);
+				sprintf(re, "%d", ret);
+		}
+		if(errno <= 0){
+				er = "0";
+		}
+		else{
+			er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
+			sprintf(er, "%d", errno);
+		}
+		
+		//sends back message to client
+		mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
+		strcat(mess, re);
+		strcat(mess, ",");
+		strcat(mess, er);
+		strcat(mess, "\0");
+		send(sock, mess, strlen(mess), 0);
+		return NULL;
+	}
+	
 	//checks to see if command message was sent correctly
 	if( part < 2 ){
 		printf("Error:Too few parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
@@ -63,20 +98,21 @@ void *threadFunc(void* arg){//This is what the thread runs
 			int size = atoi(msg[2]);//size of read or write
 			char buff[size];
 			bytes = read(openCheck, buff, size);
-			if(bytes == 0){
+			if(bytes <= 0){
 				re = "0";
 			}
 			else{
 				re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
 				sprintf(re, "%d", bytes);
 			}
-			if(errno == 0){
+			if(errno <= 0){
 				er = "0";
 			}
 			else{
 				er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
 				sprintf(er, "%d", errno);
 			}
+			
 			//makes response message
 			mess = (char*) malloc(sizeof(er) + sizeof(re) + size + 3);
 			strcat(mess, re);
@@ -90,14 +126,14 @@ void *threadFunc(void* arg){//This is what the thread runs
 		else if(strcmp(msg[1], "write\0") == 0){//checks to see if this is a write command
 			int size = strlen(msg[2]);//size of read or write
 			bytes = write(openCheck, msg[2], size);
-			if(bytes == 0){
+			if(bytes <= 0){
 				re = "0";
 			}
 			else{
 				re = (char*) malloc((int)((ceil(log10(bytes))+1)*sizeof(char)) + 1);
 				sprintf(re, "%d", bytes);
 			}
-			if(errno == 0){
+			if(errno <= 0){
 				er = "0";
 			}
 			else{

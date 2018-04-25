@@ -15,6 +15,10 @@ int netserverinit(const char* hostname, const char* mode){
 }
 
 int netopen(const char *pathname, int flags){
+	if(flags!=O_RDWR && flags!=O_WRONLY && flags!=O_RDONLY){
+		printf("Error:You may only pass O_RDWR, O_WRONLY, or O_RDONLY as a flag.\n");
+		return -1;
+	}
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
 	int len, mysocket, length = 0, counter, ret;
 	char *msg;
@@ -182,17 +186,69 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 }
 
 int netclose(int fd){
-	return 0;
+	if(fd == -1){
+		printf("Error: This is not a valid file descriptor.\nnetclose() failed to close file.\n");
+		return -1;
+	}
+	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
+	int len, mysocket, length = 0, counter, ret;
+	char *msg, *re, *er;
+	
+	int fileLen = (int)((ceil(log10(fd))+1)*sizeof(char));//size of file descriptor as a string
+	char fild[fileLen];
+	
+	//makes message that will be sent to server
+	msg = (char*) malloc(fileLen+1);
+	strcpy(msg, fild);
+	
+	//makes connection
+	struct sockaddr_in dest;
+	mysocket = socket(AF_INET, SOCK_STREAM, 0);
+	memset(&dest, 0, sizeof(dest)); // zero the struct
+	dest.sin_family = AF_INET;
+	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
+	dest.sin_port = htons(PORTNUM); // set destination port number
+	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	
+	//send message
+	send(mysocket, msg, strlen(msg), 0);
+
+	//receive return message
+	len = recv(mysocket, buffer, MAXRCVLEN, 0);
+	// We have to null terminate the received data ourselves 
+	buffer[len] = '\0';
+	printf("Received %s (%d bytes).\n", buffer, len);
+	close(mysocket);
+	//interprets message(commas separate return and error values)	
+	for(counter=0; counter<len;counter++){
+		if(buffer[counter] == 44){//breaks apart message at commas
+			re = (char*) malloc(length+1);//gets return value
+			strncpy(re, &buffer[0], length);
+			break;
+		}
+		length++;
+	}
+	//TODO:inform user when an error occurs
+	er = (char*) malloc(len - length + 1);
+	strncpy(er, &buffer[length], (len - length));
+	errno = atoi(er);
+	ret = atoi(re);
+	if(ret == -1){
+		printf("Error:%d",errno);
+	}
+	return ret;
 }
 
 int main(int argc, char *argv[])
 {
-	int fd;
-	char buf[20];
-	fd = netopen("test/test.txt",O_RDWR);
-	netread(fd, buf, 20);
-	char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
-	netwrite(fd, buff, strlen(buff));
+	//int fd, x;
+	//char buf[20];
+	//fd = netopen("test/test.txt",O_RDWR);
+	//x = netclose(fd);
+
+	//read(fd, buf, 20);
+	//char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
+	//netwrite(fd, buff, strlen(buff));
 	/*
 	netserverinit("mam1010.ls.rutgers.edu","exclusive");
 	char buffer[MAXRCVLEN + 1]; // +1 so we can add null terminator
