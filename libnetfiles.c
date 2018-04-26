@@ -2,6 +2,11 @@
 //make netopen(), netread(), netwrite(), abd netclose()
 #include "libnetfiles.h"
 
+int EISDIRcheck(const char *pathname){
+	struct stat path_stat;
+	stat(pathname, &path_stat);
+	return S_ISREG(path_stat.st_mode);
+}
 //char *Umode;
 
 int netserverinit(const char* hostname, const char* mode){
@@ -18,6 +23,12 @@ int netopen(const char *pathname, int flags){
 	if(flags!=O_RDWR && flags!=O_WRONLY && flags!=O_RDONLY){
 		errno = 1;
 		printf("Error in netopen():You may only pass O_RDWR, O_WRONLY, or O_RDONLY as a flag.\n%s",strerror(errno));
+		return -1;
+	}
+	//error EISDIR, check if filename is directory
+	if(EISDIRcheck(pathname)){
+		errno = 1;
+		printf("Error in netopen():You may only open a file, not a directory.\n%s",strerror(errno));
 		return -1;
 	}
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
