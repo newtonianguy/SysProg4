@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,14 +29,14 @@ typedef struct state_t{
 
 typedef struct node_t{
 	int sock;
-	node* next;
+	struct node_t* next;
 }node;
 
 typedef struct queue_t{
 	node *start;
 	node *tail;
 	char* pathName;
-	queue* next;
+	struct queue_t* next;
 }queue;
 
 queue *beg=NULL;
@@ -44,7 +45,7 @@ int initialized = 0;
 
 //for putting node in a queue
 int enqueue(int socker, queue* q){
-   struct Node *end= malloc(sizeof(struct Node));
+   node *end= malloc(sizeof(node));
 	end->sock = socker;  
 	end->next = NULL;  
    if(q->start==NULL){
@@ -69,7 +70,7 @@ int dequeue(queue* q){
 	 		q->start = q->start->next;
 	 	}
 	 	del->next = NULL;
-	 	free(&del);
+	 	free(del);
 	 	del = NULL;
 	 	return 1;
 	 }
@@ -323,7 +324,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 						//check is socket is in front and meets other requirments 
 						while(!(curr->canOpen==1 && strcmp(msg[0],"transaction")!=0 && (curr->flags==0 || strcmp(msg[0],"exclusive")!=0) && 
 					(curr->canWrite!=0 || flags==0)&& (curre->start->sock == sock))){
-							pthread_yield();
+							sched_yield();
 						}
 						dequeue(curre);
 						break;

@@ -175,7 +175,7 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 	close(mysocket);
 	
 	//checks to see if this is a large file and sets up for Implementation B
-	if( nbyte>4000 ){
+	/*if( nbyte>4000 ){
 		char *re[20];
 		printf("Large file will be passed\n");
 		//interprets message
@@ -218,7 +218,7 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 			strcat(buf, buff[counter]);
 		}
 		return nbyte;
-	}
+	}*/
 	char *re[2];
 	//interprets message
 	for(counter=0; counter<len;counter++){
@@ -258,7 +258,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
 	char fd[fileLen],bytes[byteLen], *re, *er;
 	if(nbyte>4000){
-		char *byt = "Large";
+		char byt[] = "Large";
 	}
 	else{
 		char byt[nbyte];

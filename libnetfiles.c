@@ -256,15 +256,17 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	int len, mysocket, counter, length=0, ret;
 	int fileLen = (int)((ceil(log10(fildes))+1)*sizeof(char));//size of file as a string
 	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
-	char fd[fileLen],bytes[byteLen], *re, *er;
+	char fd[fileLen],bytes[byteLen], *re, *er,byt[nbyte];
+	/*
 	if(nbyte>4000){
-		char *byt = "Large";
+		char byt[] = "Large";
 	}
 	else{
 		char byt[nbyte];
 		strncpy(byt, buf, nbyte);
 	}
-
+*/
+	strncpy(byt, buf, nbyte);
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
 	sprintf(bytes,"%d",(int)nbyte);

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,14 +29,14 @@ typedef struct state_t{
 
 typedef struct node_t{
 	int sock;
-	node* next;
+	struct node_t* next;
 }node;
 
 typedef struct queue_t{
 	node *start;
 	node *tail;
 	char* pathName;
-	queue* next;
+	struct queue_t* next;
 }queue;
 
 queue *beg=NULL;
@@ -44,7 +45,7 @@ int initialized = 0;
 
 //for putting node in a queue
 int enqueue(int socker, queue* q){
-   struct Node *end= malloc(sizeof(struct Node));
+   node *end= malloc(sizeof(node));
 	end->sock = socker;  
 	end->next = NULL;  
    if(q->start==NULL){
@@ -69,7 +70,7 @@ int dequeue(queue* q){
 	 		q->start = q->start->next;
 	 	}
 	 	del->next = NULL;
-	 	free(&del);
+	 	free(del);
 	 	del = NULL;
 	 	return 1;
 	 }
