@@ -2,24 +2,68 @@
 //make netopen(), netread(), netwrite(), abd netclose()
 #include "libnetfiles.h"
 
+const char *Umode;
+int mysocket;
+
 int EISDIRcheck(const char *pathname){
 	struct stat path_stat;
 	stat(pathname, &path_stat);
 	return S_ISREG(path_stat.st_mode);
 }
-//char *Umode;
+
 
 int netserverinit(const char* hostname, const char* mode){
-	//Umode = mode; 
+	Umode = mode; 
+	
+	//checks to see if the hostname exists
 	if( gethostbyname(hostname) == NULL ){
-		printf("Error: Host does not exist\n");
+		printf("Error: HOST_NOT_FOUND\n");
+		errno = 22;
+		mysocket = -1;
 		return -1;
 	}
-	printf("Host does exist.\n");
+	
+	//checks the mode that was passed
+	if(strcmp(mode, "unrestricted") != 0){
+		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
+		errno = 22;
+		mysocket = -1;
+		return -1;
+	}
+	else if(strcmp(mode, "exclusive") != 0){
+		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
+		mysocket = -1;
+		errno = 22;
+		return -1;
+	}
+	else if(strcmp(mode, "transaction") != 0){
+		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
+		mysocket = -1;
+		errno = 22;
+		return -1;
+	}
+
+	//makes connection
+	struct sockaddr_in dest;
+	mysocket = socket(AF_INET, SOCK_STREAM, 0);
+	memset(&dest, 0, sizeof(dest)); // zero the struct
+	dest.sin_family = AF_INET;
+	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
+	dest.sin_port = htons(PORTNUM); // set destination port number
+	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	
 	return 0;
 }
 
 int netopen(const char *pathname, int flags){
+	//checks connection
+	if(mysocket == -1){
+		printf("Error:Socket connection was never made\n");
+		
+		return -1;
+	}
+	
+	//checks flags
 	if(flags!=O_RDWR && flags!=O_WRONLY && flags!=O_RDONLY){
 		errno = 1;
 		printf("Error in netopen():You may only pass O_RDWR, O_WRONLY, or O_RDONLY as a flag.\n%s",strerror(errno));
@@ -32,7 +76,7 @@ int netopen(const char *pathname, int flags){
 		return -1;
 	}
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
-	int len, mysocket, length = 0, counter, ret;
+	int len, length = 0, counter, ret;
 	char *msg;
 	
 	//converts "flags" from int to char
@@ -42,13 +86,14 @@ int netopen(const char *pathname, int flags){
 	sprintf(flag,"%d",flags);
 	
 	//makes message that will be sent to server
-	msg = (char*) malloc(12+strlen(pathname)+flags);
-	strcat(msg, "exclusive,");
+	msg = (char*) malloc(2+strlen(pathname)+strlen(Umode)+flags);
+	strcat(msg, Umode);
 	strcat(msg, pathname);
 	strcat(msg, ",");
 	strcat(msg, flag);
 	strcat(msg, "\0");
 	
+	/*
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -57,6 +102,7 @@ int netopen(const char *pathname, int flags){
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
 	dest.sin_port = htons(PORTNUM); // set destination port number
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	*/
 	
 	//send message
 	send(mysocket, msg, strlen(msg), 0);
@@ -181,6 +227,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	strcat(msg, byt);
 	strcat(msg, "\0");
 
+	
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -189,6 +236,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
 	dest.sin_port = htons(PORTNUM); // set destination port number
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	
 	
 	//send message
 	send(mysocket, msg, strlen(msg), 0);
@@ -244,6 +292,7 @@ int netclose(int fd){
 	msg = (char*) malloc(fileLen+1);
 	strcpy(msg, fild);
 	
+	
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -252,6 +301,7 @@ int netclose(int fd){
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
 	dest.sin_port = htons(PORTNUM); // set destination port number
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	
 	
 	//send message
 	send(mysocket, msg, strlen(msg), 0);
@@ -295,24 +345,7 @@ int main(int argc, char *argv[])
 	//char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
 	//netwrite(fd, buff, strlen(buff));
 	netclose(fd);
-	/*
-	netserverinit("mam1010.ls.rutgers.edu","exclusive");
-	char buffer[MAXRCVLEN + 1]; // +1 so we can add null terminator
-	int len, mysocket;
-	struct sockaddr_in dest;
-	mysocket = socket(AF_INET, SOCK_STREAM, 0);
-	memset(&dest, 0, sizeof(dest)); // zero the struct 
-	dest.sin_family = AF_INET;
-	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
-	dest.sin_port = htons(PORTNUM); // set destination port number
-	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
-	len = recv(mysocket, buffer, MAXRCVLEN, 0);
-	// We have to null terminate the received data ourselves
-	buffer[len] = '\0';
-	printf("Received %s (%d bytes).\n", buffer, len);
-	close(mysocket);
-	return EXIT_SUCCESS;
-	*/
+	
 	return 0;
 }
 
