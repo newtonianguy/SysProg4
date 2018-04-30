@@ -7,8 +7,8 @@ RANLIB = ranlib
 
 
 all: libnetfiles.c libnetfiles.h netfileserver.c
-	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c -lm
-	gcc -g -Wall -Werror -fsanitize=address -o netfile netfileserver.c -lm
+	gcc -g -Wall -Werror -fsanitize=address -o libnet libnetfiles.c -lm -lrt
+	gcc -g -Wall -Werror -fsanitize=address -o netfile netfileserver.c -lm -lrt
 
 server: netfileserver.c
 	gcc -g -Wall -Werror -fsanitize=address -o netfile netfileserver.c

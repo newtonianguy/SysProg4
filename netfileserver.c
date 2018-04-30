@@ -12,6 +12,8 @@
 #include <pthread.h>
 #include <math.h>
 #include <errno.h>
+#include <time.h>
+#include <signal.h>
 #define MAXRCVLEN 500
 #define PORTNUM 2343
 
@@ -29,6 +31,7 @@ typedef struct state_t{
 
 typedef struct node_t{
 	int sock;
+	uintmax_t now;
 	struct node_t* next;
 }node;
 
@@ -38,10 +41,39 @@ typedef struct queue_t{
 	char* pathName;
 	struct queue_t* next;
 }queue;
-
+		
 queue *beg=NULL;
 state *head=NULL;
-int initialized = 0;
+int initialized = 0, initial = 0;
+
+
+//for Implementation D. Checks the queue and takes away connections that are 2 sec old
+//Checks every 3 sec.
+static void sigHandler(int sig, siginfo_t *si, void *unused){
+	queue *curre;
+	node *curr, *prev;
+	time_t result = time(NULL);
+	//checks to see if there are any queues
+	if(beg==NULL){
+		return;
+	}
+	else{
+		for(curre=beg; curre!=NULL; curre=curre->next){
+			prev = curre->start;
+			for(curr=curre->start; curr!=NULL; curr=curr->next){
+				if((curr->now - result) > 120){
+					prev->next = curr->next;
+					curr->next = NULL;
+					free(curr);
+					curr = prev;
+				}
+				prev = curr;
+			}
+		}
+		return;
+	}
+	return;
+}
 
 //for putting node in a queue
 int enqueue(int socker, queue* q){
@@ -79,7 +111,32 @@ int dequeue(queue* q){
 
 //function passed to create thread
 void *threadFunc(void* arg){//This is what the thread runs
-
+	
+	//sets up sigHandler for implementation D
+	if(initial ==0 ){
+		initial = 1;
+		struct sigaction sa;
+		sa.sa_flags = SA_SIGINFO;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_sigaction = sigHandler;
+		
+		if (sigaction(SIGALRM, &sa, NULL) == -1)
+		{
+			printf("Fatal error setting up signal handler\n");
+			exit(EXIT_FAILURE); //explode!!
+		}
+		timer_t timerid;
+		timer_create(CLOCK_REALTIME, NULL, &timerid);	
+		
+		struct itimerspec value;
+		value.it_interval.tv_sec = 3;
+		value.it_interval.tv_nsec = 0;
+		value.it_value.tv_sec = 3;
+		value.it_value.tv_sec = 0;
+		
+		timer_settime(timerid, 0, &value, NULL);
+	}
+	
 	//declares variables
 	int len, *mysocket = (int*)arg, openCheck;
 	int sock = *((int*)arg);//converts argument into socket connection
@@ -408,11 +465,8 @@ void *threadFunc(void* arg){//This is what the thread runs
 }
 
 int main(int argc, char *argv[]){
-	//initialize the mutex
-	if(pthread_mutex_init(&lock, NULL)!=0){
-		printf("Mutex not Initialized\n");
-	}	
-	
+	//signal(SIGALRM, sigHandler);
+
 	//initializes the thread attributes
 	pthread_t tnum=0;
 	pthread_attr_init(&attr);
