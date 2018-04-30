@@ -41,7 +41,11 @@ typedef struct queue_t{
 	char* pathName;
 	struct queue_t* next;
 }queue;
-		
+
+//initializes the thread attributes
+pthread_t tnum=0;
+
+//other global variables
 queue *beg=NULL;
 state *head=NULL;
 int initialized = 0, initial = 0;
@@ -247,37 +251,84 @@ void *threadFunc(void* arg){//This is what the thread runs
 	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int bytes;
 		int size = atoi(msg[2]);//size of read or write
-		/*
+		
 		//checks for "Large File Transfers"
 		if( size>4000 ){
 			printf("Large File Transfer\n");
 			int segs=1, oc=size;
-			while(size>4000){
-				size = size/2;
-				seg++;
+			while(size>4000 && segs<=10){
+				size = oc/segs;
+				segs++;
 			}
-			char *segs1, *segs2, *ports[seg];
+			//checks to see if file is too large
+			if(size>4000 && size==10){
+				char *msg = "-1,    ,110";
+				send(sock, msg, strlen(msg), 0);
+				return NULL;
+			}
+			char *segs1, *segs2, *ports[segs];
 			segs1 = (char*) malloc((int)((ceil(log10(size))+1)*sizeof(char)));
 			sprintf(segs1, "%d", size);
-			segs2 = (char*) malloc((int)((ceil(log10(oc-(seg*size)))+1)*sizeof(char)));
-			sprintf(segs2, "%d", (oc-(seg*size)));
+			segs2 = (char*) malloc((int)((ceil(log10(oc-(segs*size)))+1)*sizeof(char)));
+			sprintf(segs2, "%d", (oc-(segs*size)));
 			
 			//makes response message
-			mess = (char*) malloc((strlen(segs1)*seg) + strlen(seg2) + (seg*2));
-			for(counter=0; counter<seg; counter++){
-				
-				strcat(mess,)
+			int pNum;
+			char *pNums;
+			mess = (char*) malloc((strlen(segs1)*segs) + strlen(segs2) + (segs*2));
+			for(counter=0; counter<segs-1; counter++){
+				pNum = PORTNUM + counter;
+				pNums = (char*) malloc((int)((ceil(log10(pNum))+1)*sizeof(char)));
+				sprintf(pNums, "%d", pNum);
+				strcat(mess, pNums);
+				strcat(mess, ",");
+				strcat(mess, segs1);
+				strcat(mess, ",");
+				free(pNums);
 			}
-			strcat(mess, re);
+			pNum = PORTNUM + counter;
+			pNums = (char*) malloc((int)((ceil(log10(pNum))+1)*sizeof(char)));
+			sprintf(pNums, "%d", pNum);
+			strcat(mess, pNums);
 			strcat(mess, ",");
-			strcat(mess,buff);
-			strcat(mess, ",");
-			strcat(mess, er);
+			strcat(mess, segs2);
 			strcat(mess, "\0");
+			free(pNums);
+			
+			//sends response
 			send(sock, mess, strlen(mess), 0);
-		}*/
-		
-		if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
+			
+			//receives connection to different sockets
+			struct sockaddr_in dest;//socket info about the machine connecting to us
+			struct sockaddr_in serv;//socket info about the server
+			int mySocket;//socket used for listening for incoming connections
+			socklen_t socksize;
+			int conSocket;
+			pthread_attr_init(&attr);
+			for(counter=0; counter<segs; counter++){
+				
+				//sets up server 
+				socksize = sizeof(struct sockaddr_in);
+				
+				memset(&serv, 0, sizeof(serv));//zero the struct before filling the fields
+				serv.sin_family = AF_INET;//set the type of connection to TCP/IP
+				serv.sin_addr.s_addr = htonl(INADDR_ANY);//set our address to any interface
+				serv.sin_port = htons(PORTNUM+counter);//set the server port number
+				
+				mySocket = socket(AF_INET, SOCK_STREAM, 0);
+	
+				bind(mySocket, (struct sockaddr *)&serv, sizeof(struct sockaddr));//bind server info to mysocket
+	
+				//starts listening for connections to queue
+				listen(mySocket, 1);
+				conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);
+				pthread_create(&tnum, &attr, &threadFunc, (void*) &conSocket);//creates thread
+				tnum++;
+			}
+			
+			return NULL;
+		}
+		else if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
 			printf("Read Called\n");
 			char buff[size];
 			bytes = read(openCheck, buff, size);
@@ -465,13 +516,11 @@ void *threadFunc(void* arg){//This is what the thread runs
 }
 
 int main(int argc, char *argv[]){
-	signal(SIGALRM, sigHandler);
+	//signal(SIGALRM, sigHandler);
 
-	//initializes the thread attributes
-	pthread_t tnum=0;
-	pthread_attr_init(&attr);
 	//sets pthread variables
-
+	pthread_attr_init(&attr);
+	
 	//sets up server 
 	struct sockaddr_in dest;//socket info about the machine connecting to us
 	struct sockaddr_in serv;//socket info about the server

@@ -175,7 +175,7 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 	close(mysocket);
 	
 	//checks to see if this is a large file and sets up for Implementation B
-	/*if( nbyte>4000 ){
+	if( nbyte>4000 ){
 		char *re[20];
 		printf("Large file will be passed\n");
 		//interprets message
@@ -192,35 +192,60 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 		}
 		re[part] = (char*) malloc(length + 1);
 		strncpy(re[part], &buffer[length], (length + 1));
-		int sockets[(part+1)/2];//lens[(part+1)/2], i=0
-		char *buff[(part+1)/2];
+		int sockets[(part+1)/2], lens[(part+1)/2], pNum;
+		char *buff[(part+1)/2]; char* mesg[(part+1)/2];
 		
-		//makes a socket connection with all the required sockets
+		//makes messages to send back
+		for(counter=0; counter<((part+1)/2); counter++){
+			strcat(mesg[counter], fd);
+			strcat(mesg[counter], ",read,");
+			strcat(mesg[counter], re[(counter*2)+1]);
+			strcat(mesg[counter], "\0");
+		}
+		
+		//makes a socket connection with all the required sockets and sends connection to each
 		for(counter=0; counter<((part+1)/2); counter++){
 			sockets[counter] = socket(AF_INET, SOCK_STREAM, 0);
-			mysocket = socket(AF_INET, SOCK_STREAM, 0);
 			memset(&dest, 0, sizeof(dest)); // zero the struct
 			dest.sin_family = AF_INET;
 			dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
-			dest.sin_port = htons(PORTNUM+part); // set destination port number
+			pNum = atoi(re[counter*2]);
+			dest.sin_port = htons(pNum); // set destination port number
 			connect(sockets[counter], (struct sockaddr *)&dest, sizeof(struct sockaddr));
+			
+			send(sockets[counter], mesg[counter], strlen(mesg[counter]), 0);
 		}
 		
-		int lenF;//final message length
-		//receive return message
+		//receive return message and interpret
+		int i;//final message length
+		char *retu[2];
 		for(counter=0; counter<((part+1)/2); counter++){
 			lens[counter] = recv(sockets[counter], buff[counter], MAXRCVLEN, 0);
 			close(sockets[counter]);
+			//interprets message
+			for(i=0; i<lens[counter];i++){
+				if(buff[counter][i] == 44){//breaks apart message at commas
+					retu[part] = (char*) malloc(i + 1);//gets return value
+					strncpy(retu[part], &buff[counter][start], i);
+					start = i + 1;
+					part++;
+					length = 0;
+					continue;
+				}
+				length++;
+			}
+			er = (char*) malloc(i + 1);
+			strncpy(er, &buff[counter][start], (i + 1));
+			errno = atoi(er);
+			ret = atoi(re[0]);
+			strcat(buf, re[1]);
 		}
-		
-		//places read in buff
-		for(counter=0; counter<((part+1)/2); counter++){
-			strcat(buf, buff[counter]);
-		}
+		strcat(buf, "\0");
 		return nbyte;
-	}*/
-	char *re[2];
+	}
+	
 	//interprets message
+	char *re[2];
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == 44){//breaks apart message at commas
 			re[part] = (char*) malloc(length + 1);//gets return value
@@ -256,16 +281,9 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	int len, mysocket, counter, length=0, ret;
 	int fileLen = (int)((ceil(log10(fildes))+1)*sizeof(char));//size of file as a string
 	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
-	char fd[fileLen],bytes[byteLen], *re, *er,byt[nbyte];
-	/*
-	if(nbyte>4000){
-		char byt[] = "Large";
-	}
-	else{
-		char byt[nbyte];
-		strncpy(byt, buf, nbyte);
-	}
-*/
+	char fd[fileLen], *re, *er,byt[nbyte];
+	
+	char bytes[byteLen];
 	strncpy(byt, buf, nbyte);
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
