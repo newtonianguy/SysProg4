@@ -21,5 +21,5 @@ clean:
 	
 	
 archive:
-	tar czf asst1.tar *.c *.h 
+	tar czf Asst3.tgz Asst3 
 	

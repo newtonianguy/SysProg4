@@ -15,6 +15,7 @@
 #define PORTNUM 2343
 
 pthread_attr_t attr;
+pthread_mutex_t lock;
 
 typedef struct state_t{
 	int client;
@@ -25,9 +26,55 @@ typedef struct state_t{
 	struct state_t* next;
 }state;
 
-state *head;
-int initialized = 1;
+typedef struct node_t{
+	int sock;
+	node* next;
+}node;
 
+typedef struct queue_t{
+	node *start;
+	node *tail;
+	char* pathName;
+	queue* next;
+}queue;
+
+queue *beg=NULL;
+state *head=NULL;
+int initialized = 0;
+
+//for putting node in a queue
+int enqueue(int socker, queue* q){
+   struct Node *end= malloc(sizeof(struct Node));
+	end->sock = socker;  
+	end->next = NULL;  
+   if(q->start==NULL){
+       q->start=end;
+   }
+   else{
+       q->tail->next=end;
+   }
+   q->tail=end;
+   return 1;
+}
+
+//for taking a node off a queue
+int dequeue(queue* q){
+	 if( q->start!=NULL ){
+	 	node* del = q->start;
+	 	if(q->start == q->tail){
+	 		q->start = NULL;
+	 		q->tail = NULL;
+	 	}
+	 	else{
+	 		q->start = q->start->next;
+	 	}
+	 	del->next = NULL;
+	 	free(&del);
+	 	del = NULL;
+	 	return 1;
+	 }
+    return 0;
+}
 
 //function passed to create thread
 void *threadFunc(void* arg){//This is what the thread runs
@@ -54,7 +101,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 		}
 		if(buffer[counter] == 44){//breaks apart message at commas
 			if( part>=3 ){//makes sure too many parameters weren't sent by the client
-				printf("Error:Too many parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
+				printf("Error:Too many parameters were sent by the client.\nCommand message should have three parameters.\nCommas separate paramaters.\n");
 			}
 			printf("Found break in the message\n");
 			msg[part] = (char*) malloc(length+1);
@@ -72,6 +119,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 	//checks to see if this is a close message
 	if(part==0){
 		//calls close and gets return and error messages
+		printf("Close Called\n");
 		int fd = atoi(msg[0]);
 		int ret;
 		ret = close(fd);
@@ -104,13 +152,20 @@ void *threadFunc(void* arg){//This is what the thread runs
 			if(fd == curr->client){
 				//checks to see if it is the head ptr
 				if( curr==head ){
+					if( curr->next==NULL ){//checks if head is beginning and end of list
+						curr->next = NULL;
+						free(curr);
+						head=NULL;
+						initialized = 0;
+						break;
+					}
 					head = curr->next;
 					curr->next = NULL;
 					free(curr);
 					break;
 				}
 				else if( curr->next==NULL ){//checks to see if end of list
-					prev->next==NULL;
+					prev->next=NULL;
 					free(curr);
 					break;
 				}
@@ -127,14 +182,45 @@ void *threadFunc(void* arg){//This is what the thread runs
 	
 	//checks to see if command message was sent correctly
 	if( part < 2 ){
-		printf("Error:Too few parameters were sent by the client.\nCommand message chould have three parameters.\nCommas separate paramaters.\n");
+		printf("Error:Too few parameters were sent by the client.\nCommand message should have three parameters.\nCommas separate paramaters.\n");
 	}
 	//interprets message and performs commands
 	openCheck = atoi(msg[0]);
 	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int bytes;
+		int size = atoi(msg[2]);//size of read or write
+		/*
+		//checks for "Large File Transfers"
+		if( size>4000 ){
+			printf("Large File Transfer\n");
+			int segs=1, oc=size;
+			while(size>4000){
+				size = size/2;
+				seg++;
+			}
+			char *segs1, *segs2, *ports[seg];
+			segs1 = (char*) malloc((int)((ceil(log10(size))+1)*sizeof(char)));
+			sprintf(segs1, "%d", size);
+			segs2 = (char*) malloc((int)((ceil(log10(oc-(seg*size)))+1)*sizeof(char)));
+			sprintf(segs2, "%d", (oc-(seg*size)));
+			
+			//makes response message
+			mess = (char*) malloc((strlen(segs1)*seg) + strlen(seg2) + (seg*2));
+			for(counter=0; counter<seg; counter++){
+				
+				strcat(mess,)
+			}
+			strcat(mess, re);
+			strcat(mess, ",");
+			strcat(mess,buff);
+			strcat(mess, ",");
+			strcat(mess, er);
+			strcat(mess, "\0");
+			send(sock, mess, strlen(mess), 0);
+		}*/
+		
 		if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
-			int size = atoi(msg[2]);//size of read or write
+			printf("Read Called\n");
 			char buff[size];
 			bytes = read(openCheck, buff, size);
 			if(bytes <= 0){
@@ -163,7 +249,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 			send(sock, mess, strlen(mess), 0);
 		}
 		else if(strcmp(msg[1], "write\0") == 0){//checks to see if this is a write command
-			int size = strlen(msg[2]);//size of read or write
+			printf("Write Called\n");
 			bytes = write(openCheck, msg[2], size);
 			if(bytes <= 0){
 				re = "0";
@@ -196,8 +282,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 		printf("Open Called\n");
 		int retur, found=0;
 		int flags = atoi(msg[2]);
-		if(initialized != 1){
-			initialized = 0;
+		if(initialized == 1){
 			//checks open permissions for specified file
 			prev = head;
 			for(curr=head; curr!=NULL; curr=curr->next){
@@ -211,23 +296,37 @@ void *threadFunc(void* arg){//This is what the thread runs
 						//2) the requested mode is not transaction
 						//3) the file can be written to and wants to be opened in exclusive
 						//4) the file is in exclusive and wants to be written to
-						if( curr->next->pathName == curr->pathName ){
+						if( curr->next->pathName != curr->pathName ){
 							found=1;
 							break;
 						}
 						continue;//checks for different file descriptors
 					}
 					else{//couldn't open file
-						re = "-1";
-						errno = 13;//EACCESS error
-						er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
-						sprintf(er, "%d", errno);
-						mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
-						strcat(mess, re);
-						strcat(mess, ",");
-						strcat(mess, er);
-						strcat(mess, "\0");
-						return NULL;
+						//search for correct queue
+						queue* curre;
+						if(beg==NULL){
+							beg = (queue*) malloc(sizeof(queue));
+							beg->pathName = msg[1];
+							beg->start = NULL;
+							beg->tail = NULL;
+							beg->next = NULL;
+						}
+						else{
+							for(curre=beg; curre!=NULL; curre=curre->next){
+								if(curre->pathName==msg[1]){
+									break;
+								}
+							}
+						}
+						enqueue(sock,curre);
+						//check is socket is in front and meets other requirments 
+						while(!(curr->canOpen==1 && strcmp(msg[0],"transaction")!=0 && (curr->flags==0 || strcmp(msg[0],"exclusive")!=0) && 
+					(curr->canWrite!=0 || flags==0)&& (curre->start->sock == sock))){
+							pthread_yield();
+						}
+						dequeue(curre);
+						break;
 					}
 				}
 				prev = curr;
@@ -236,14 +335,14 @@ void *threadFunc(void* arg){//This is what the thread runs
 		
 		//calls open
 		retur = open(msg[1],flags);
-		
-		
+
 		//adds to global state
 		state *meh = (state*) malloc(sizeof(state));
+		meh->pathName = (char*) malloc(strlen(msg[1])+1);
 		strcpy(meh->pathName, msg[1]);
 		meh->client = retur;
 		meh->flags = flags;
-		
+		meh->next=NULL;
 		//checks mode
 		if( strcmp(msg[0],"unrestricted")==0 ){
 			meh->canOpen = 1;
@@ -257,10 +356,12 @@ void *threadFunc(void* arg){//This is what the thread runs
 			meh->canOpen = 0;
 			meh->canWrite = 0;
 		}
+		
+		//adds node to list and makes a queue for the file
 		if( found==0 ){
 			//makes first node in list
-			if(initialized == 1){
-				initialized = 0;
+			if(initialized == 0){
+				initialized = 1;
 				head = meh;
 			}
 			else{
@@ -285,9 +386,6 @@ void *threadFunc(void* arg){//This is what the thread runs
 		else{
 			re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
 			sprintf(re, "%d", retur);
-			
-			//sets global state of file
-			
 		}
 	
 		if(errno <= 0){
@@ -309,6 +407,11 @@ void *threadFunc(void* arg){//This is what the thread runs
 }
 
 int main(int argc, char *argv[]){
+	//initialize the mutex
+	if(pthread_mutex_init(&lock, NULL)!=0){
+		printf("Mutex not Initialized\n");
+	}	
+	
 	//initializes the thread attributes
 	pthread_t tnum=0;
 	pthread_attr_init(&attr);
@@ -330,7 +433,7 @@ int main(int argc, char *argv[]){
 	bind(mySocket, (struct sockaddr *)&serv, sizeof(struct sockaddr));//bind server info to mysocket
 	
 	//starts listening for connections to queue
-	listen(mySocket, 1);
+	listen(mySocket, 10);
 	int conSocket = accept(mySocket, (struct sockaddr *)&dest, &socksize);
 	pthread_create(&tnum, &attr, &threadFunc, (void*) &conSocket);//creates thread
 	tnum++;

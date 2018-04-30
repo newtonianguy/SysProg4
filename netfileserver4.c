@@ -15,7 +15,6 @@
 #define PORTNUM 2343
 
 pthread_attr_t attr;
-pthread_mutex_t lock;
 
 typedef struct state_t{
 	int client;
@@ -26,55 +25,9 @@ typedef struct state_t{
 	struct state_t* next;
 }state;
 
-typedef struct node_t{
-	int sock;
-	node* next;
-}node;
-
-typedef struct queue_t{
-	node *start;
-	node *tail;
-	char* pathName;
-	queue* next;
-}queue;
-
-queue *beg=NULL;
-state *head=NULL;
+state *head;
 int initialized = 0;
 
-//for putting node in a queue
-int enqueue(int socker, queue* q){
-   struct Node *end= malloc(sizeof(struct Node));
-	end->sock = socker;  
-	end->next = NULL;  
-   if(q->start==NULL){
-       q->start=end;
-   }
-   else{
-       q->tail->next=end;
-   }
-   q->tail=end;
-   return 1;
-}
-
-//for taking a node off a queue
-int dequeue(queue* q){
-	 if( q->start!=NULL ){
-	 	node* del = q->start;
-	 	if(q->start == q->tail){
-	 		q->start = NULL;
-	 		q->tail = NULL;
-	 	}
-	 	else{
-	 		q->start = q->start->next;
-	 	}
-	 	del->next = NULL;
-	 	free(&del);
-	 	del = NULL;
-	 	return 1;
-	 }
-    return 0;
-}
 
 //function passed to create thread
 void *threadFunc(void* arg){//This is what the thread runs
@@ -188,39 +141,9 @@ void *threadFunc(void* arg){//This is what the thread runs
 	openCheck = atoi(msg[0]);
 	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int bytes;
-		int size = atoi(msg[2]);//size of read or write
-		/*
-		//checks for "Large File Transfers"
-		if( size>4000 ){
-			printf("Large File Transfer\n");
-			int segs=1, oc=size;
-			while(size>4000){
-				size = size/2;
-				seg++;
-			}
-			char *segs1, *segs2, *ports[seg];
-			segs1 = (char*) malloc((int)((ceil(log10(size))+1)*sizeof(char)));
-			sprintf(segs1, "%d", size);
-			segs2 = (char*) malloc((int)((ceil(log10(oc-(seg*size)))+1)*sizeof(char)));
-			sprintf(segs2, "%d", (oc-(seg*size)));
-			
-			//makes response message
-			mess = (char*) malloc((strlen(segs1)*seg) + strlen(seg2) + (seg*2));
-			for(counter=0; counter<seg; counter++){
-				
-				strcat(mess,)
-			}
-			strcat(mess, re);
-			strcat(mess, ",");
-			strcat(mess,buff);
-			strcat(mess, ",");
-			strcat(mess, er);
-			strcat(mess, "\0");
-			send(sock, mess, strlen(mess), 0);
-		}*/
-		
 		if(strcmp(msg[1], "read\0") == 0){//checks to see if it is a "read" command
 			printf("Read Called\n");
+			int size = atoi(msg[2]);//size of read or write
 			char buff[size];
 			bytes = read(openCheck, buff, size);
 			if(bytes <= 0){
@@ -250,6 +173,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 		}
 		else if(strcmp(msg[1], "write\0") == 0){//checks to see if this is a write command
 			printf("Write Called\n");
+			int size = strlen(msg[2]);//size of read or write
 			bytes = write(openCheck, msg[2], size);
 			if(bytes <= 0){
 				re = "0";
@@ -296,37 +220,23 @@ void *threadFunc(void* arg){//This is what the thread runs
 						//2) the requested mode is not transaction
 						//3) the file can be written to and wants to be opened in exclusive
 						//4) the file is in exclusive and wants to be written to
-						if( curr->next->pathName != curr->pathName ){
+						if( curr->next->pathName == curr->pathName ){
 							found=1;
 							break;
 						}
 						continue;//checks for different file descriptors
 					}
 					else{//couldn't open file
-						//search for correct queue
-						queue* curre;
-						if(beg==NULL){
-							beg = (queue*) malloc(sizeof(queue));
-							beg->pathName = msg[1];
-							beg->start = NULL;
-							beg->tail = NULL;
-							beg->next = NULL;
-						}
-						else{
-							for(curre=beg; curre!=NULL; curre=curre->next){
-								if(curre->pathName==msg[1]){
-									break;
-								}
-							}
-						}
-						enqueue(sock,curre);
-						//check is socket is in front and meets other requirments 
-						while(!(curr->canOpen==1 && strcmp(msg[0],"transaction")!=0 && (curr->flags==0 || strcmp(msg[0],"exclusive")!=0) && 
-					(curr->canWrite!=0 || flags==0)&& (curre->start->sock == sock))){
-							pthread_yield();
-						}
-						dequeue(curre);
-						break;
+						re = "-1";
+						errno = 13;//EACCESS error
+						er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
+						sprintf(er, "%d", errno);
+						mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
+						strcat(mess, re);
+						strcat(mess, ",");
+						strcat(mess, er);
+						strcat(mess, "\0");
+						return NULL;
 					}
 				}
 				prev = curr;
@@ -357,7 +267,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 			meh->canWrite = 0;
 		}
 		
-		//adds node to list and makes a queue for the file
+		//adds node to list
 		if( found==0 ){
 			//makes first node in list
 			if(initialized == 0){
@@ -386,6 +296,9 @@ void *threadFunc(void* arg){//This is what the thread runs
 		else{
 			re = (char*) malloc((int)((ceil(log10(retur))+1)*sizeof(char)));
 			sprintf(re, "%d", retur);
+			
+			//sets global state of file
+			
 		}
 	
 		if(errno <= 0){
@@ -407,11 +320,6 @@ void *threadFunc(void* arg){//This is what the thread runs
 }
 
 int main(int argc, char *argv[]){
-	//initialize the mutex
-	if(pthread_mutex_init(&lock, NULL)!=0){
-		printf("Mutex not Initialized\n");
-	}	
-	
 	//initializes the thread attributes
 	pthread_t tnum=0;
 	pthread_attr_init(&attr);

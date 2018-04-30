@@ -3,7 +3,7 @@
 #include "libnetfiles.h"
 
 const char *Umode;
-int mysocket;
+int mysocket1 = -1;
 
 int EISDIRcheck(const char *pathname){
 	struct stat path_stat;
@@ -19,45 +19,33 @@ int netserverinit(const char* hostname, const char* mode){
 	if( gethostbyname(hostname) == NULL ){
 		printf("Error: HOST_NOT_FOUND\n");
 		errno = 22;
-		mysocket = -1;
+		mysocket1 = -1;
 		return -1;
 	}
 	
 	//checks the mode that was passed
-	if(strcmp(mode, "unrestricted") != 0){
-		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
+	if(strcmp(mode, "unrestricted")!=0 && strcmp(mode, "exclusive")!=0 && strcmp(mode, "transaction")!=0){
+		printf("Error:INVALID_FILE_MODE.You passed %s.\nOnly unrestricted, exclusive, and transaction.\n",mode);
 		errno = 22;
-		mysocket = -1;
-		return -1;
-	}
-	else if(strcmp(mode, "exclusive") != 0){
-		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
-		mysocket = -1;
-		errno = 22;
-		return -1;
-	}
-	else if(strcmp(mode, "transaction") != 0){
-		printf("Error:INVALID_FILE_MODE\nOnly unrestricted, exclusive, and transaction.\n");
-		mysocket = -1;
-		errno = 22;
+		mysocket1 = -1;
 		return -1;
 	}
 
 	//makes connection
 	struct sockaddr_in dest;
-	mysocket = socket(AF_INET, SOCK_STREAM, 0);
+	mysocket1 = socket(AF_INET, SOCK_STREAM, 0);
 	memset(&dest, 0, sizeof(dest)); // zero the struct
 	dest.sin_family = AF_INET;
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
 	dest.sin_port = htons(PORTNUM); // set destination port number
-	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
+	connect(mysocket1, (struct sockaddr *)&dest, sizeof(struct sockaddr));
 	
 	return 0;
 }
 
 int netopen(const char *pathname, int flags){
 	//checks connection
-	if(mysocket == -1){
+	if(mysocket1 == -1){
 		printf("Error:Socket connection was never made\n");
 		
 		return -1;
@@ -69,12 +57,14 @@ int netopen(const char *pathname, int flags){
 		printf("Error in netopen():You may only pass O_RDWR, O_WRONLY, or O_RDONLY as a flag.\n%s",strerror(errno));
 		return -1;
 	}
+	/*
 	//error EISDIR, check if filename is directory
 	if(EISDIRcheck(pathname)){
 		errno = 1;
 		printf("Error in netopen():You may only open a file, not a directory.\n%s",strerror(errno));
 		return -1;
 	}
+	*/
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
 	int len, length = 0, counter, ret;
 	char *msg;
@@ -88,6 +78,7 @@ int netopen(const char *pathname, int flags){
 	//makes message that will be sent to server
 	msg = (char*) malloc(2+strlen(pathname)+strlen(Umode)+flags);
 	strcat(msg, Umode);
+	strcat(msg, ",");
 	strcat(msg, pathname);
 	strcat(msg, ",");
 	strcat(msg, flag);
@@ -105,14 +96,14 @@ int netopen(const char *pathname, int flags){
 	*/
 	
 	//send message
-	send(mysocket, msg, strlen(msg), 0);
+	send(mysocket1, msg, strlen(msg), 0);
 
 	//receive return message
-	len = recv(mysocket, buffer, MAXRCVLEN, 0);
+	len = recv(mysocket1, buffer, MAXRCVLEN, 0);
 	// We have to null terminate the received data ourselves 
 	buffer[len] = '\0';
 	printf("Received %s (%d bytes).\n", buffer, len);
-	close(mysocket);
+	close(mysocket1);
 	//interprets message(commas separate return and error values)	
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == 44){//breaks apart message at commas
@@ -140,7 +131,8 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 		printf("Error in netread():%s\n",strerror(errno));
 		return -1;
 	}
-	char buffer[MAXRCVLEN + 1], *re[2], *er; //+1 so we can add null terminator
+	
+	char buffer[MAXRCVLEN + 1], *er; //+1 so we can add null terminator
 	int len, mysocket, counter, length=0, ret, start=0, part=0;
 	int fileLen = (int)((ceil(log10(fildes))+1)*sizeof(char));//size of file as a string
 	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
@@ -172,10 +164,63 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 	
 	//receive return message
 	len = recv(mysocket, buffer, MAXRCVLEN, 0);
+	if(len == -1){
+		printf("Error in netread():%s\n",strerror(errno));
+		return -1;
+	}
+	
 	// We have to null terminate the received data ourselves 
 	buffer[len] = '\0';
 	printf("Received %s (%d bytes).\n", buffer, len);
 	close(mysocket);
+	
+	//checks to see if this is a large file and sets up for Implementation B
+	/*if( nbyte>4000 ){
+		char *re[20];
+		printf("Large file will be passed\n");
+		//interprets message
+		for(counter=0; counter<len;counter++){
+			if(buffer[counter] == 44){//breaks apart message at commas
+				re[part] = (char*) malloc(length + 1);//gets return value
+				strncpy(re[part], &buffer[start], length);
+				start = counter + 1;
+				part++;
+				length = 0;
+				continue;
+			}
+			length++;
+		}
+		re[part] = (char*) malloc(length + 1);
+		strncpy(re[part], &buffer[length], (length + 1));
+		int sockets[(part+1)/2];//lens[(part+1)/2], i=0
+		char *buff[(part+1)/2];
+		
+		//makes a socket connection with all the required sockets
+		for(counter=0; counter<((part+1)/2); counter++){
+			sockets[counter] = socket(AF_INET, SOCK_STREAM, 0);
+			mysocket = socket(AF_INET, SOCK_STREAM, 0);
+			memset(&dest, 0, sizeof(dest)); // zero the struct
+			dest.sin_family = AF_INET;
+			dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
+			dest.sin_port = htons(PORTNUM+part); // set destination port number
+			connect(sockets[counter], (struct sockaddr *)&dest, sizeof(struct sockaddr));
+		}
+		
+		int lenF;//final message length
+		//receive return message
+		for(counter=0; counter<((part+1)/2); counter++){
+			lens[counter] = recv(sockets[counter], buff[counter], MAXRCVLEN, 0);
+			close(sockets[counter]);
+		}
+		
+		//places read in buff
+		for(counter=0; counter<((part+1)/2); counter++){
+			strcat(buf, buff[counter]);
+		}
+		return nbyte;
+	}*/
+	char *re[2];
+	//interprets message
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == 44){//breaks apart message at commas
 			re[part] = (char*) malloc(length + 1);//gets return value
@@ -187,9 +232,8 @@ size_t netread(int fildes, void *buf, size_t nbyte){
 		}
 		length++;
 	}
-	//TODO:inform user when an error occurs
 	er = (char*) malloc(length + 1);
-	strncpy(er, &buffer[length], (length + 1));
+	strncpy(er, &buffer[start], (length + 1));
 	errno = atoi(er);
 	ret = atoi(re[0]);
 	strncpy(buf, re[1], nbyte);
@@ -212,8 +256,14 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	int len, mysocket, counter, length=0, ret;
 	int fileLen = (int)((ceil(log10(fildes))+1)*sizeof(char));//size of file as a string
 	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
-	char fd[fileLen],bytes[byteLen], byt[nbyte], *re, *er;
-	strncpy(byt, buf, nbyte);
+	char fd[fileLen],bytes[byteLen], *re, *er;
+	if(nbyte>4000){
+		char *byt = "Large";
+	}
+	else{
+		char byt[nbyte];
+		strncpy(byt, buf, nbyte);
+	}
 
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
@@ -221,13 +271,12 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 
 	//makes message that will be sent to server
 	char *msg;
-	msg = (char*) malloc(fileLen + nbyte + 8);//7 is for ",read," and null terminator
+	msg = (char*) malloc(fileLen + sizeof(byt) + 8);//7 is for ",read," and null terminator
 	strcat(msg, fd);
 	strcat(msg, ",write,");
 	strcat(msg, byt);
 	strcat(msg, "\0");
 
-	
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -243,6 +292,10 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	
 	//receive return message
 	len = recv(mysocket, buffer, MAXRCVLEN, 0);
+	if(len == -1){
+		printf("Error in netread():%s\n",strerror(errno));
+		return -1;
+	}
 	
 	// We have to null terminate the received data ourselves 
 	buffer[len] = '\0';
@@ -264,7 +317,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 		}
 		length++;
 	}
-	//TODO:inform user when an error occurs
+	
 	er = (char*) malloc(len - length + 1);
 	strncpy(er, &buffer[length], (len - length));
 	errno = atoi(er);
@@ -276,6 +329,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 }
 
 int netclose(int fd){
+
 	if(fd == -1){
 		errno = 9;
 		printf("Error in netclose():%s\n",strerror(errno));
@@ -284,15 +338,16 @@ int netclose(int fd){
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
 	int len, mysocket, length = 0, counter, ret;
 	char *msg, *re, *er;
-	
+
 	int fileLen = (int)((ceil(log10(fd))+1)*sizeof(char));//size of file descriptor as a string
 	char fild[fileLen];
 	
 	//makes message that will be sent to server
 	msg = (char*) malloc(fileLen+1);
+	sprintf(fild,"%d",fd);
 	strcpy(msg, fild);
 	
-	
+
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -301,8 +356,7 @@ int netclose(int fd){
 	dest.sin_addr.s_addr = inet_addr("127.0.0.1"); // set destination IP number
 	dest.sin_port = htons(PORTNUM); // set destination port number
 	connect(mysocket, (struct sockaddr *)&dest, sizeof(struct sockaddr));
-	
-	
+
 	//send message
 	send(mysocket, msg, strlen(msg), 0);
 
@@ -337,11 +391,13 @@ int main(int argc, char *argv[])
 {
 	int fd;
 	char buf[20];
-	fd = netopen("test/test1.txt",O_RDWR);
+	netserverinit("127.0.0.1","unrestricted");
+	fd = netopen("test/test.txt",O_RDWR);
 	//open("test/test1.txt",O_RDWR);
 	//x = netclose(fd);
 	//printf("%d\n",errno);
-	read(fd, buf, 20);
+	netread(fd, buf, 20);
+	printf("%s\n",buf);
 	//char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
 	//netwrite(fd, buff, strlen(buff));
 	netclose(fd);
