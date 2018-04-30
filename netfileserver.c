@@ -251,7 +251,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 	if(openCheck != 0){//this means the message is a "read" or "write" command
 		int bytes;
 		int size = atoi(msg[2]);//size of read or write
-		
+		//char buff[size];
 		//checks for "Large File Transfers"
 		if( size>4000 ){
 			printf("Large File Transfer\n");
@@ -374,6 +374,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 				er = (char*) malloc((int)((ceil(log10(errno))+1)*sizeof(char)));
 				sprintf(er, "%d", errno);
 			}
+			
 			//makes response message
 			mess = (char*) malloc(sizeof(er) + sizeof(re) + 2);
 			strcat(mess, re);
@@ -412,6 +413,7 @@ void *threadFunc(void* arg){//This is what the thread runs
 						continue;//checks for different file descriptors
 					}
 					else{//couldn't open file
+						printf("Couldn't open file\n");
 						//search for correct queue
 						queue* curre;
 						if(beg==NULL){

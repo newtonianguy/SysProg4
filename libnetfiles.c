@@ -280,23 +280,19 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	char buffer[MAXRCVLEN + 1]; //+1 so we can add null terminator
 	int len, mysocket, counter, length=0, ret;
 	int fileLen = (int)((ceil(log10(fildes))+1)*sizeof(char));//size of file as a string
-	int byteLen = (int)((ceil(log10(nbyte))+1)*sizeof(char));//size of file as a string
-	char fd[fileLen], *re, *er,byt[nbyte];
+	char fd[fileLen], *re, *er;
 	
-	char bytes[byteLen];
-	strncpy(byt, buf, nbyte);
 	//converts int params into string for sending to server
 	sprintf(fd,"%d",fildes);
-	sprintf(bytes,"%d",(int)nbyte);
 
 	//makes message that will be sent to server
 	char *msg;
-	msg = (char*) malloc(fileLen + sizeof(byt) + 8);//7 is for ",read," and null terminator
+	msg = (char*) malloc(fileLen + nbyte + 8);//7 is for ",read," and null terminator
 	strcat(msg, fd);
 	strcat(msg, ",write,");
-	strcat(msg, byt);
+	strcat(msg, (char*)buf);
 	strcat(msg, "\0");
-
+	
 	//makes connection
 	struct sockaddr_in dest;
 	mysocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -322,12 +318,7 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 	printf("Received %s (%d bytes).\n", buffer, len);
 	close(mysocket);
 	
-	//receive return message
-	len = recv(mysocket, buffer, MAXRCVLEN, 0);
-	// We have to null terminate the received data ourselves 
-	buffer[len] = '\0';
-	printf("Received %s (%d bytes).\n", buffer, len);
-	close(mysocket);
+	//decode return message
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == 44){//breaks apart message at commas
 			re = (char*) malloc(length + 1);//gets return value
@@ -337,7 +328,6 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 		}
 		length++;
 	}
-	
 	er = (char*) malloc(len - length + 1);
 	strncpy(er, &buffer[length], (len - length));
 	errno = atoi(er);
@@ -349,7 +339,6 @@ size_t netwrite(int fildes, void *buf, size_t nbyte){
 }
 
 int netclose(int fd){
-
 	if(fd == -1){
 		errno = 9;
 		printf("Error in netclose():%s\n",strerror(errno));
@@ -382,10 +371,12 @@ int netclose(int fd){
 
 	//receive return message
 	len = recv(mysocket, buffer, MAXRCVLEN, 0);
+	
 	// We have to null terminate the received data ourselves 
 	buffer[len] = '\0';
 	printf("Received %s (%d bytes).\n", buffer, len);
 	close(mysocket);
+	
 	//interprets message(commas separate return and error values)	
 	for(counter=0; counter<len;counter++){
 		if(buffer[counter] == 44){//breaks apart message at commas
@@ -396,7 +387,6 @@ int netclose(int fd){
 		}
 		length++;
 	}
-	//TODO:inform user when an error occurs
 	er = (char*) malloc(len - length + 1);
 	strncpy(er, &buffer[length], (len - length));
 	errno = atoi(er);
@@ -410,16 +400,16 @@ int netclose(int fd){
 int main(int argc, char *argv[])
 {
 	int fd;
-	char buf[20];
-	netserverinit("127.0.0.1","unrestricted");
+	//char buf[20];
+	netserverinit("127.0.0.1","transaction");
 	fd = netopen("test/test.txt",O_RDWR);
 	//open("test/test1.txt",O_RDWR);
 	//x = netclose(fd);
 	//printf("%d\n",errno);
-	netread(fd, buf, 20);
-	printf("%s\n",buf);
-	//char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
-	//netwrite(fd, buff, strlen(buff));
+	//netread(fd, buf, 20);
+	//printf("%s\n",buf);
+	char *buff = "You fool! I have been trained in the Jedi arts by Count Dooku.";
+	netwrite(fd, buff, strlen(buff));
 	netclose(fd);
 	
 	return 0;
